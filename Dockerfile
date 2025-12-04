@@ -49,3 +49,5 @@ RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/a
 
 # 9. Dosya Sahipliğini Ayarla
 RUN chown -R www-data:www-data /var/www/html
+
+CMD bash -c "php artisan migrate --force && apache2-foreground"
