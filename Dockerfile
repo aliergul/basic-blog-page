@@ -9,37 +9,43 @@ RUN apt-get update && apt-get install -y \
     npm \
     && docker-php-ext-install pdo_pgsql bcmath zip
 
-# 2. Apache DocumentRoot Ayarı (Laravel için public klasörü)
-# DÜZELTME: Değişken kullanmak yerine hardcode (elle) yazıyoruz, hata riskini sıfırlıyoruz.
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-
-# /var/www/html olan her yeri /var/www/html/public yapıyoruz
-RUN sed -ri -e 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www/!/var/www/html/public!g' /etc/apache2/apache2.conf
-
-# 3. Apache İzin Ayarları (403 Hatası Çözümü)
-# DÜZELTME: Varsayılan "AllowOverride None" ayarını "All" yapıyoruz ki .htaccess çalışsın.
-# Ayrıca "Require all granted" olduğundan emin olmak için replace yapıyoruz.
-RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
-
-# 4. Port Ayarı (Render için dinamik port)
-RUN sed -i "s/Listen 80/Listen \${PORT}/" /etc/apache2/ports.conf
-
-# 5. Modülleri Aktif Et
+# 2. Modülleri Aktif Et
 RUN a2enmod rewrite
 
-# 6. Composer Kurulumu
+# 3. Composer'ı indir
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# 7. Çalışma Dizini
+# 4. Çalışma Dizini
 WORKDIR /var/www/html
 
-# 8. Dosyaları Kopyala
+# 5. Dosyaları Kopyala
 COPY . .
 
-# 9. Bağımlılıkları Yükle
+# 6. Bağımlılıkları Yükle
 RUN composer install --no-dev --optimize-autoloader
 RUN npm install && npm run build
 
-# 10. İzinleri Ayarla
+# --- DÜZELTME BURADA BAŞLIYOR ---
+
+# 7. Apache Ayar Dosyasını (VirtualHost) Sıfırdan Yazıyoruz
+# Eski dosyayı değiştirmekle uğraşmıyoruz, direkt yenisini oluşturuyoruz.
+# DocumentRoot'u /public olarak ayarlıyoruz ve izinleri veriyoruz.
+RUN echo '<VirtualHost *:80>\n\
+    ServerName localhost\n\
+    DocumentRoot /var/www/html/public\n\
+    <Directory /var/www/html/public>\n\
+    Options Indexes FollowSymLinks\n\
+    AllowOverride All\n\
+    Require all granted\n\
+    </Directory>\n\
+    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
+    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
+    </VirtualHost>' > /etc/apache2/sites-available/000-default.conf
+
+# 8. Render Port Ayarı
+# Apache varsayılan olarak 80 portunu dinler ama Render dinamik port verir ($PORT).
+# Ayar dosyalarındaki "80" rakamlarını Render'ın vereceği port değişkeniyle değiştiriyoruz.
+RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
+
+# 9. Dosya Sahipliğini Ayarla
 RUN chown -R www-data:www-data /var/www/html
