@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Post;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -32,8 +31,8 @@ class PostsController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'title' => 'required',
-            'content' => 'required',
+            'title' => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string']
         ]);
 
         $validated['user_id'] = Auth::id();
@@ -72,8 +71,8 @@ class PostsController extends Controller
         }
 
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'content' => 'required|string'
+            'title' => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string']
         ]);
 
         $post->update($validated);
@@ -86,7 +85,7 @@ class PostsController extends Controller
     public function destroy(Post $post)
     {
         if ($post->user_id !== Auth::id()) {
-            abort(403);
+            abort(403, 'You do not have authorization to perform this operation.');
         }
         $post->delete();
         return redirect()->route('dashboard')->with('success', 'Post deleted successfully!');
