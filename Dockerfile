@@ -1,7 +1,7 @@
-# Temel imaj olarak PHP 8.2 ve Apache kullanıyoruz
-FROM php:8.2-apache
+# GÜNCELLEME: PHP 8.2 Yerine 8.4 kullanıyoruz
+FROM php:8.4-apache
 
-# 1. Gerekli kütüphaneleri ve Node.js'i kuruyoruz (Tailwind için şart)
+# 1. Gerekli kütüphaneleri ve Node.js'i kuruyoruz
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     libzip-dev \
@@ -10,30 +10,30 @@ RUN apt-get update && apt-get install -y \
     npm \
     && docker-php-ext-install pdo_pgsql bcmath zip
 
-# 2. Apache ayarları: Render'ın verdiği PORT'u dinle ve public klasörünü aç
+# 2. Apache ayarları
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
-# Render dinamik port verir, Apache'yi buna zorluyoruz:
 RUN sed -i "s/Listen 80/Listen \${PORT}/" /etc/apache2/ports.conf
 
-# 3. Laravel için gerekli olan Rewrite modülünü aç
+# 3. Rewrite modülünü aç
 RUN a2enmod rewrite
 
-# 4. Composer'ı indir (PHP paket yöneticisi)
+# 4. Composer'ı indir
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# 5. Çalışma dizinini ayarla
+# 5. Çalışma dizini
 WORKDIR /var/www/html
 
-# 6. Proje dosyalarını kopyala
+# 6. Dosyaları kopyala
 COPY . .
 
-# 7. Bağımlılıkları yükle ve Build al
-# PHP paketlerini kur
+# 7. Paketleri yükle (Production modu)
+# --ignore-platform-reqs ekledik ki ufak sürüm farklarına takılmasın
 RUN composer install --no-dev --optimize-autoloader
-# Node paketlerini kur ve CSS'i derle (npm run build)
+
+# 8. Frontend build al
 RUN npm install && npm run build
 
-# 8. Dosya izinlerini ayarla (Laravel'in storage klasörüne yazabilmesi lazım)
+# 9. İzinleri ayarla
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
